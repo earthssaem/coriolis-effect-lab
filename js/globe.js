@@ -4,6 +4,7 @@ import { OrbitControls } from '../vendor/OrbitControls.js';
 import { Line2 } from '../vendor/Line2.js';
 import { LineGeometry } from '../vendor/LineGeometry.js';
 import { LineMaterial } from '../vendor/LineMaterial.js';
+import fx from './fx.js';
 
 export const OMEGA = 7.2921e-5;   // rad/s, 지구 자전 각속도
 export const R_EARTH = 6371e3;    // m
@@ -43,11 +44,15 @@ export function initGlobe() {
     roTime: document.getElementById('ro-time'), roLat: document.getElementById('ro-lat'),
     roSin: document.getElementById('ro-sin'), roAcc: document.getElementById('ro-acc'),
     roDir: document.getElementById('ro-dir'),
+    omegaSeg: document.getElementById('globe-omega'),
+    predict: document.getElementById('globe-predict'),
+    quizResult: document.getElementById('globe-quiz-result'),
+    quizScore: document.getElementById('globe-score'),
   };
 
   const S = {
-    lat: 40, heading: 0, v: 150, durationH: 6, timescale: 900,
-    paused: false, view: 'earth', objects: [],
+    lat: 40, lon: 0, heading: 0, v: 150, durationH: 6, timescale: 900, omegaMult: 1,
+    paused: false, view: 'earth', objects: [], quizCorrect: 0, quizTotal: 0,
   };
 
   const fatLines = [];   // 굵은 선 재질(해상도 갱신용)
@@ -84,10 +89,25 @@ export function initGlobe() {
   const earth = new THREE.Group(); scene.add(earth);
 
   // 지구 본체
-  earth.add(new THREE.Mesh(
+  const globeMesh = new THREE.Mesh(
     new THREE.SphereGeometry(1, 96, 64),
     new THREE.MeshPhongMaterial({ color: 0x1f5ea8, specular: 0x224466, shininess: 18 })
-  ));
+  );
+  earth.add(globeMesh);
+
+  // 발사 지점 표시(맥동하는 고리)
+  const launchRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.035, 0.05, 40),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false })
+  );
+  launchRing.renderOrder = 4;
+  earth.add(launchRing);
+  function placeLaunchRing() {
+    const phi = S.lat * DEG, lam = S.lon * DEG;
+    const p = toVec(phi, lam, 1.012);
+    launchRing.position.copy(p);
+    launchRing.lookAt(p.clone().multiplyScalar(2));
+  }
 
   // 위·경도 격자
   {
@@ -143,6 +163,15 @@ export function initGlobe() {
     return m;
   }
 
+  const glowTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,200,120,.8)'); gr.addColorStop(1, 'rgba(255,120,60,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+
   function makeLabel(text) {
     const c = document.createElement('canvas'); c.width = 256; c.height = 96;
     const g = c.getContext('2d');
@@ -161,7 +190,7 @@ export function initGlobe() {
     const o = {
       phi, lam, vE: v * Math.sin(th), vN: v * Math.cos(th), v,
       phi0: phi, lam0: lam, ephi: phi, elam: lam, evE: v * Math.sin(th), evN: v * Math.cos(th),
-      t: 0, sinceSample: 0, tEnd: S.durationH * 3600, done: false,
+      t: 0, sinceSample: 0, tEnd: S.durationH * 3600, done: false, mult: S.omegaMult,
       pts: [], epts: [], group: new THREE.Group(),
     };
     // 실제 경로(붉은 굵은 선)
@@ -178,11 +207,14 @@ export function initGlobe() {
     // 현재 위치 표시
     o.marker = new THREE.Mesh(new THREE.SphereGeometry(0.022, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     o.marker.position.copy(toVec(phi, lam, 1.01));
-    o.group.add(o.line, o.eline, o.arrow0, o.fArrow, o.marker);
+    o.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthTest: false, blending: THREE.AdditiveBlending }));
+    o.glow.scale.set(0.09, 0.09, 1); o.glow.position.copy(o.marker.position); o.glow.material.opacity = 0.7;
+    o.group.add(o.line, o.eline, o.arrow0, o.fArrow, o.marker, o.glow);
     earth.add(o.group);
     samplePoint(o);
     S.objects.push(o);
     S.paused = false; el.pause.textContent = '⏸ 일시정지';
+    fx.whoosh();
     return o;
   }
 
@@ -199,7 +231,7 @@ export function initGlobe() {
 
   // 회전계(지구)에서의 수평 운동: dvE/dt = f·vN, dvN/dt = −f·vE,  f = 2Ω sinφ
   function stepObject(o, dt) {
-    const f = 2 * OMEGA * Math.sin(o.phi);
+    const f = 2 * OMEGA * o.mult * Math.sin(o.phi);
     const a = f * dt, c = Math.cos(a), s = Math.sin(a);
     const vE = o.vE * c + o.vN * s, vN = -o.vE * s + o.vN * c;
     o.vE = vE; o.vN = vN;
@@ -218,7 +250,10 @@ export function initGlobe() {
   function updateVisuals(o) {
     const pos = toVec(o.phi, o.lam, 1.01);
     o.marker.position.copy(pos);
-    const f = 2 * OMEGA * Math.sin(o.phi);
+    o.glow.position.copy(pos);
+    const pulse = o.done ? 0.06 : 0.085 + 0.025 * Math.sin(performance.now() / 120);
+    o.glow.scale.set(pulse, pulse, 1);
+    const f = 2 * OMEGA * o.mult * Math.sin(o.phi);
     // 전향력 방향: (f·vN, −f·vE) (동, 북 성분)
     const aE = f * o.vN, aN = -f * o.vE, mag = Math.hypot(aE, aN);
     if (mag > 1e-12 && !o.done) {
@@ -255,15 +290,57 @@ export function initGlobe() {
     const latD = o.phi / DEG;
     el.roLat.textContent = `${Math.abs(latD).toFixed(1)}°${latD >= 0 ? 'N' : 'S'}`;
     el.roSin.textContent = Math.sin(o.phi).toFixed(3);
-    el.roAcc.innerHTML = `${sci(2 * o.v * OMEGA * Math.abs(Math.sin(o.phi)))} m/s²`;
+    el.roAcc.innerHTML = `${sci(2 * o.v * OMEGA * o.mult * Math.abs(Math.sin(o.phi)))} m/s²${o.mult > 1 ? ` (자전 ${o.mult}×)` : ''}`;
     const s = Math.sin(o.phi);
     el.roDir.textContent = Math.abs(s) < 0.02 ? '거의 없음 (적도 부근)' : s > 0 ? '운동 방향의 오른쪽' : '운동 방향의 왼쪽';
   }
   function updateControlsOut() {
-    const l = S.lat;
-    el.latOut.textContent = l === 0 ? '0° (적도)' : `${Math.abs(l)}°${l > 0 ? 'N' : 'S'}`;
+    const l = S.lat, g = Math.round(S.lon);
+    const lonTxt = g === 0 ? '' : ` · 경도 ${Math.abs(g)}°${g > 0 ? 'E' : 'W'}`;
+    el.latOut.textContent = (l === 0 ? '0° (적도)' : `${Math.abs(l)}°${l > 0 ? 'N' : 'S'}`) + lonTxt;
     el.vOut.textContent = `${S.v} m/s`;
+    placeLaunchRing();
   }
+
+  // ── 예측 퀴즈 ─────────────────────────────────────────
+  const DIR_KO = { left: '왼쪽', right: '오른쪽', none: '휘지 않음' };
+  function expectedDeflection(latDeg) { return latDeg > 3 ? 'right' : latDeg < -3 ? 'left' : 'none'; }
+  function revealQuiz(o) {
+    o.quiz.revealed = true;
+    const ok = o.quiz.pred === o.quiz.answer;
+    S.quizTotal++; if (ok) S.quizCorrect++;
+    el.quizScore.textContent = `정답 ${S.quizCorrect} / 문제 ${S.quizTotal}`;
+    const why = o.quiz.answer === 'none'
+      ? '적도 부근에서는 sin φ ≈ 0 이라 전향력이 거의 없습니다.'
+      : `${o.quiz.answer === 'right' ? '북반구' : '남반구'}에서는 전향력이 운동 방향의 ${DIR_KO[o.quiz.answer]} 직각 방향으로 작용합니다.`;
+    el.quizResult.innerHTML = ok
+      ? `<b class="ok">🎉 정답!</b> ${why}`
+      : `<b class="bad">아쉬워요.</b> 정답은 <b>${DIR_KO[o.quiz.answer]}</b>. ${why}`;
+    if (ok) { fx.ding(); fx.confettiAt(el.quizResult, 80); } else fx.wrong();
+  }
+
+  // ── 지구본 클릭으로 발사 지점 선택 ───────────────────
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  let downAt = null;
+  renderer.domElement.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; });
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!downAt) return;
+    const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y); downAt = null;
+    if (moved > 6) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObject(globeMesh, false)[0];
+    if (!hit) return;
+    const p = earth.worldToLocal(hit.point.clone());
+    const phi = Math.asin(Math.max(-1, Math.min(1, p.y))), lam = Math.atan2(-p.z, p.x);
+    S.lat = Math.max(-85, Math.min(85, Math.round(phi / DEG)));
+    S.lon = Math.round(lam / DEG);
+    el.lat.value = S.lat;
+    updateControlsOut();
+    fx.click();
+    el.hud.textContent = `발사 지점: ${el.latOut.textContent} · ▶ 발사 또는 예측 퀴즈로 발사하세요`;
+  });
 
   // ── 루프 ─────────────────────────────────────────────
   let last = null;
@@ -281,9 +358,11 @@ export function initGlobe() {
         let rem = simDt;
         while (rem > 0 && !o.done) { const dt = Math.min(SUBSTEP, rem); stepObject(o, dt); rem -= dt; }
         updateVisuals(o);
+        if (o.quiz && !o.quiz.revealed && (o.t >= 2 * 3600 || o.done)) revealQuiz(o);
       }
       // 자전: 우주 시점에서는 지구가 돌고, 지구 시점에서는 별이 반대로 돈다
-      const dAng = OMEGA * simDt;
+      const dAng = OMEGA * S.omegaMult * simDt;
+      launchRing.scale.setScalar(1 + 0.25 * Math.sin(performance.now() / 250));
       if (S.view === 'space') earth.rotation.y += dAng; else stars.rotation.y -= dAng;
       if (anyActive) updateReadout();
     }
@@ -309,15 +388,31 @@ export function initGlobe() {
   });
   el.duration.addEventListener('change', () => { S.durationH = parseFloat(el.duration.value); });
   el.timescale.addEventListener('change', () => { S.timescale = parseFloat(el.timescale.value); });
-  el.launch.addEventListener('click', () => { launch(S.lat, S.heading, S.v); updateReadout(); });
+  el.launch.addEventListener('click', () => { launch(S.lat, S.heading, S.v, S.lon); updateReadout(); });
+  el.omegaSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.omegaMult = parseFloat(b.dataset.mult);
+    el.omegaSeg.querySelectorAll('button').forEach(x => x.classList.toggle('is-active', x === b));
+    el.hud.textContent = S.omegaMult > 1
+      ? `지구가 실제보다 ${S.omegaMult}배 빨리 자전한다면? 전향력도 ${S.omegaMult}배가 되어 경로가 훨씬 많이 휩니다.`
+      : '실제 지구 자전 속도(하루에 한 바퀴)입니다.';
+    fx.click();
+  });
+  el.predict.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const o = launch(S.lat, S.heading, S.v, S.lon);
+    o.quiz = { pred: b.dataset.p, answer: expectedDeflection(S.lat), revealed: false };
+    el.quizResult.innerHTML = `예측: <b>${DIR_KO[b.dataset.p]}</b> … 2시간 뒤 결과가 공개됩니다. 경로를 지켜보세요!`;
+    updateReadout();
+  });
   el.pause.addEventListener('click', () => { S.paused = !S.paused; el.pause.textContent = S.paused ? '▶ 계속' : '⏸ 일시정지'; });
   el.clear.addEventListener('click', clearAll);
   el.preset.addEventListener('click', () => {
     clearAll();
     // 교과서 그림 Ⅱ-6: 60°N·30°N·0°·30°S·60°S 에서 북쪽과 남쪽으로 발사
     for (const lat of [60, 30, 0, -30, -60]) {
-      launch(lat, 0, 150, -8);
-      launch(lat, 180, 150, 8);
+      launch(lat, 0, 150, S.lon - 8);
+      launch(lat, 180, 150, S.lon + 8);
     }
     updateReadout();
     el.hud.textContent = '교과서 그림 Ⅱ-6 재현: 북반구는 오른쪽, 남반구는 왼쪽으로 휘고 적도에서는 거의 휘지 않습니다.';

@@ -19,7 +19,10 @@
     <button class="tab" data-module="globe" type="button"><span class="tab-num">2</span>3D 지구본</button>
     <button class="tab" data-module="calc" type="button"><span class="tab-num">3</span>전향력의 크기</button>
   </nav>
-  <div class="topbar-hint">숫자 키 1·2·3 으로 화면 전환</div>
+  <div class="topbar-right">
+    <span class="topbar-hint">숫자 키 1·2·3 으로 화면 전환</span>
+    <button id="sound-toggle" class="icon-btn" type="button" title="효과음 켜기/끄기" aria-label="효과음 켜기/끄기">🔊</button>
+  </div>
 </header>
 
 <main>
@@ -48,6 +51,7 @@
     <div class="ctrl-group ctrl-buttons">
       <button id="disk-play" class="btn btn-primary" type="button">▶ 던지기</button>
       <button id="disk-reset" class="btn" type="button">↺ 처음으로</button>
+      <button id="disk-solve" class="btn btn-accent" type="button">💡 정답 각도</button>
       <label class="ctrl-inline">재생 속도
         <select id="disk-rate">
           <option value="0.25">0.25×</option>
@@ -73,6 +77,11 @@
     </div>
 
     <div class="ctrl-group">
+      <label for="disk-aim">조준 각도 <output id="disk-aim-out"></output></label>
+      <input id="disk-aim" type="range" min="-85" max="85" step="1" value="0">
+    </div>
+
+    <div class="ctrl-group">
       <span class="ctrl-label">회전 방향</span>
       <div class="segmented" id="disk-dir">
         <button type="button" data-dir="1" class="is-active">시계 반대 방향</button>
@@ -85,6 +94,7 @@
       <label><input type="checkbox" id="disk-show-trail" checked> 공의 경로(자취)</label>
       <label><input type="checkbox" id="disk-show-force" checked> 전향력 화살표</label>
       <label><input type="checkbox" id="disk-include-thrower"> 던지는 사람의 회전 속도 반영</label>
+      <span class="score" id="disk-score">명중 0 / 시도 0</span>
     </div>
 
     <p class="status" id="disk-status">▶ 던지기를 누르면 아래쪽 사람이 위쪽 사람에게 공을 던집니다.</p>
@@ -102,7 +112,7 @@
         <span><i class="sw sw-line-red"></i>전향력에 의한 실제 경로</span>
         <span><i class="sw sw-arrow-orange"></i>전향력의 방향</span>
       </div>
-      <div class="globe-hud" id="globe-hud">마우스로 끌어 돌리기 · 휠로 확대</div>
+      <div class="globe-hud" id="globe-hud">지구본을 클릭하면 발사 지점이 바뀝니다 · 끌어서 돌리기 · 휠로 확대</div>
     </div>
 
     <aside class="globe-panel">
@@ -113,7 +123,7 @@
 
       <div class="ctrl-group">
         <label for="globe-lat">발사 위도 <output id="globe-lat-out"></output></label>
-        <input id="globe-lat" type="range" min="-85" max="85" step="5" value="40">
+        <input id="globe-lat" type="range" min="-85" max="85" step="1" value="40">
       </div>
 
       <div class="ctrl-group">
@@ -148,6 +158,26 @@
             <option value="3600">3600×</option>
           </select>
         </label>
+      </div>
+
+      <div class="ctrl-group">
+        <span class="ctrl-label">지구 자전 속도 <span class="ctrl-hint">만약 더 빨리 돈다면?</span></span>
+        <div class="segmented" id="globe-omega">
+          <button type="button" data-mult="1" class="is-active">실제 (1×)</button>
+          <button type="button" data-mult="3">3×</button>
+          <button type="button" data-mult="10">10×</button>
+        </div>
+      </div>
+
+      <div class="quiz-card" id="globe-quiz">
+        <div class="quiz-title">🎯 예측 퀴즈 <span class="score" id="globe-score">정답 0 / 문제 0</span></div>
+        <div class="quiz-q">지금 조건으로 발사하면 물체는 어느 쪽으로 휠까요? 고르면 바로 발사됩니다.</div>
+        <div class="quiz-options" id="globe-predict">
+          <button type="button" data-p="left">← 왼쪽</button>
+          <button type="button" data-p="none">휘지 않음</button>
+          <button type="button" data-p="right">오른쪽 →</button>
+        </div>
+        <div class="quiz-result" id="globe-quiz-result"></div>
       </div>
 
       <div class="ctrl-group ctrl-buttons">
@@ -233,6 +263,14 @@
         <div class="fact"><div class="fact-label">1시간 동안 옆으로 밀리는 거리</div><div class="fact-value" id="calc-shift1h"></div></div>
       </div>
       <p class="fine-print">밀리는 거리는 전향력이 일정하다고 가정한 대략값(½at²)입니다. 짧은 시간·작은 규모의 운동에서는 무시할 수 있지만, 해류나 대기처럼 큰 규모의 운동에서는 반드시 고려해야 합니다.</p>
+
+      <div class="quiz-card" id="calc-quiz">
+        <div class="quiz-title">🧠 도전 퀴즈 <span class="score" id="calc-score">정답 0 / 문제 0</span></div>
+        <div class="quiz-q" id="calc-quiz-q">버튼을 눌러 문제를 받으세요. 방향·크기 비교·계산 문제가 무작위로 나옵니다.</div>
+        <div class="quiz-options" id="calc-quiz-options"></div>
+        <div class="quiz-result" id="calc-quiz-result"></div>
+        <div class="ctrl-buttons"><button id="calc-quiz-new" class="btn btn-accent" type="button">새 문제</button></div>
+      </div>
     </aside>
 
     <div class="calc-chart">

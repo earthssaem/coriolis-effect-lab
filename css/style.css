@@ -52,7 +52,43 @@ sup { font-size: .7em; }
 .brand { display: flex; align-items: baseline; gap: 12px; }
 .brand-title { font-size: 1.35rem; font-weight: 800; letter-spacing: -.01em; }
 .brand-sub { color: var(--text-3); font-size: .9rem; }
+.topbar-right { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
 .topbar-hint { text-align: right; color: var(--text-3); font-size: .85rem; }
+.icon-btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 10px;
+  width: 40px; height: 40px; font-size: 1.1rem; cursor: pointer; display: grid; place-items: center;
+}
+.icon-btn:hover { background: var(--surface-2); }
+.ctrl-hint { font-weight: 500; color: var(--text-3); font-size: .8rem; }
+
+.score {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #1b2230; color: #ffd166; border-radius: 999px; padding: 3px 12px;
+  font-size: .85rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ctrl-checks .score { margin-left: auto; }
+
+/* 퀴즈 카드 */
+.quiz-card {
+  background: linear-gradient(135deg, #fff7e6, #ffeef0);
+  border: 1px solid #f3d9b1; border-radius: 12px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.quiz-title { font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.quiz-q { font-size: .95rem; line-height: 1.45; }
+.quiz-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.quiz-options button {
+  border: 2px solid #f0c9a0; background: #fff; border-radius: 10px; padding: 7px 14px;
+  font-weight: 700; cursor: pointer; font-size: .9rem; flex: 1 1 auto;
+}
+.quiz-options button:hover:not(:disabled) { border-color: var(--red); }
+.quiz-options button:disabled { cursor: default; opacity: .75; }
+.quiz-options button.is-correct { background: #d9f5e8; border-color: var(--green); color: #0b6b47; opacity: 1; }
+.quiz-options button.is-wrong { background: #fbe1e0; border-color: var(--red); color: #9b2524; opacity: 1; }
+.quiz-result { font-size: .9rem; min-height: 1.3em; }
+.quiz-result .ok { color: #0b6b47; }
+.quiz-result .bad { color: #9b2524; }
+.quiz-card .ctrl-buttons { margin-top: 2px; }
 
 .tabs { display: flex; gap: 6px; background: var(--surface-2); padding: 4px; border-radius: 999px; }
 .tab {
@@ -115,11 +151,12 @@ main { min-height: calc(100vh - var(--topbar-h)); }
 .ctrl-buttons { flex-direction: row; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ctrl-inline { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: .9rem; color: var(--text-2); }
 .ctrl-row { flex-direction: row; gap: 16px; flex-wrap: wrap; }
-.ctrl-checks { flex-direction: row; flex-wrap: wrap; gap: 6px 18px; grid-column: span 3; }
+.ctrl-checks { flex-direction: row; flex-wrap: wrap; gap: 6px 18px; grid-column: span 3; align-items: center; }
 .ctrl-checks label { font-weight: 600; color: var(--text); font-size: .9rem; display: inline-flex; align-items: center; gap: 6px; }
 .controls .status { grid-column: 1 / -1; margin: 4px 0 0; color: var(--text-2); font-size: .95rem; }
 .controls .ctrl-buttons { grid-column: span 2; }
 .controls .ctrl-group:nth-child(2) { grid-column: span 2; }
+.controls .ctrl-checks { grid-column: span 4; }
 
 input[type=range] { width: 100%; accent-color: var(--red); cursor: pointer; }
 select {
@@ -204,11 +241,11 @@ select {
 /* ─── 모듈 3: 전향력의 크기 ─────────────────────────── */
 .calc-layout {
   display: grid; grid-template-columns: 460px 1fr; gap: 20px;
-  min-height: calc(100vh - var(--topbar-h) - 42px);
+  height: calc(100vh - var(--topbar-h) - 42px);
 }
 .calc-panel {
   background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
 }
 .formula-card {
   background: #1b2230; color: #fff; border-radius: 12px; padding: 14px 18px;

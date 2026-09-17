@@ -1,5 +1,6 @@
 // 모듈 3: 전향력의 크기 2vΩsinφ 탐구
 import { OMEGA } from './globe.js';
+import fx from './fx.js';
 
 const DEG = Math.PI / 180;
 const G = 9.8;
@@ -31,8 +32,11 @@ export function initCalc() {
     s1: document.getElementById('calc-shift1s'), s1h: document.getElementById('calc-shift1h'), s10m: document.getElementById('calc-shift10m'),
     svg: document.getElementById('calc-svg'),
     tip: document.getElementById('calc-tip'),
+    quizQ: document.getElementById('calc-quiz-q'), quizOpts: document.getElementById('calc-quiz-options'),
+    quizResult: document.getElementById('calc-quiz-result'), quizNew: document.getElementById('calc-quiz-new'),
+    quizScore: document.getElementById('calc-score'),
   };
-  const S = { lat: 37, v: 10 };
+  const S = { lat: 37, v: 10, quizCorrect: 0, quizTotal: 0, quiz: null };
   const acc = (latDeg, v) => 2 * v * OMEGA * Math.abs(Math.sin(latDeg * DEG));
 
   // ── 그래프 골격(SVG) ──────────────────────────────────
@@ -157,6 +161,85 @@ export function initCalc() {
   });
   hit.addEventListener('mouseleave', () => { hover.setAttribute('opacity', 0); el.tip.hidden = true; });
   hit.addEventListener('click', (e) => { S.lat = latFromEvent(e); el.lat.value = S.lat; update(); });
+
+  // ── 도전 퀴즈 ─────────────────────────────────────────
+  const CITIES = [
+    ['서울', 37], ['도쿄', 36], ['오슬로', 60], ['런던', 51], ['뉴욕', 41], ['카이로', 30],
+    ['시드니', -34], ['케이프타운', -34], ['부에노스아이레스', -35], ['웰링턴', -41],
+    ['키토', 0], ['싱가포르', 1], ['나이로비', -1],
+  ];
+  const MOVERS = [['바람', 10], ['해류', 1], ['비행기', 250], ['야구공', 40], ['태풍 속 공기', 30]];
+  const HEADINGS = ['북쪽', '동쪽', '남쪽', '서쪽'];
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const sinNorm = (lat) => Math.abs(Math.sin(lat * DEG));
+
+  function newQuiz() {
+    const type = pick(['dir', 'dir', 'compare', 'compare', 'calc']);
+    let q;
+    if (type === 'dir') {
+      const [city, lat] = pick(CITIES), [mover, v] = pick(MOVERS), hd = pick(HEADINGS);
+      const ans = Math.abs(lat) <= 2 ? 'none' : lat > 0 ? 'right' : 'left';
+      q = {
+        text: `<b>${city}</b>(위도 ${fmtLat(lat)})에서 ${hd}으로 움직이는 ${mover}(${v} m/s). 전향력은 어느 쪽으로 작용할까요?`,
+        options: [['left', '운동 방향의 왼쪽'], ['none', '거의 작용하지 않음'], ['right', '운동 방향의 오른쪽']],
+        answer: ans, apply: { lat, v },
+        explain: ans === 'none' ? `적도 부근(sin φ ≈ 0)이라 전향력이 거의 0입니다.` :
+          `${lat > 0 ? '북반구' : '남반구'}이므로 운동 방향의 ${ans === 'right' ? '오른쪽' : '왼쪽'} 직각 방향입니다. 크기는 ${sci(acc(lat, v))} m/s².`,
+      };
+    } else if (type === 'compare') {
+      let a, b;
+      do { a = [pick(CITIES), pick(MOVERS)]; b = [pick(CITIES), pick(MOVERS)]; }
+      while (Math.abs(acc(a[0][1], a[1][1]) - acc(b[0][1], b[1][1])) < 1e-6);
+      const aA = acc(a[0][1], a[1][1]), aB = acc(b[0][1], b[1][1]);
+      q = {
+        text: `전향력이 더 <b>큰</b> 쪽은?<br>Ⓐ ${a[0][0]}(${fmtLat(a[0][1])})의 ${a[1][0]} ${a[1][1]} m/s<br>Ⓑ ${b[0][0]}(${fmtLat(b[0][1])})의 ${b[1][0]} ${b[1][1]} m/s`,
+        options: [['A', 'Ⓐ'], ['B', 'Ⓑ']],
+        answer: aA > aB ? 'A' : 'B', apply: aA > aB ? { lat: a[0][1], v: a[1][1] } : { lat: b[0][1], v: b[1][1] },
+        explain: `Ⓐ = 2×${a[1][1]}×Ω×${sinNorm(a[0][1]).toFixed(2)} = ${sci(aA)} m/s², Ⓑ = 2×${b[1][1]}×Ω×${sinNorm(b[0][1]).toFixed(2)} = ${sci(aB)} m/s². 속력과 sin φ를 함께 봐야 합니다.`,
+      };
+    } else {
+      const lat = pick([30, 45, 60, 90, -30, -60]), v = pick([10, 20, 50, 100]);
+      const right = acc(lat, v);
+      // 오답: 2를 빼먹은 값, sin 대신 cos을 쓴 값(45°·90°처럼 겹치면 5배 값), 10배 값
+      const cosD = 2 * v * OMEGA * Math.abs(Math.cos(lat * DEG));
+      const wrongs = [right / 2, (cosD < right / 5 || Math.abs(cosD - right) < 1e-9) ? right * 5 : cosD, right * 10];
+      const opts = [['ok', sci(right)], ['w1', sci(wrongs[0])], ['w2', sci(wrongs[1])], ['w3', sci(wrongs[2])]]
+        .sort(() => Math.random() - 0.5);
+      q = {
+        text: `위도 <b>${fmtLat(lat)}</b>에서 <b>${v} m/s</b>로 움직이는 물체에 작용하는 전향력의 크기는? (Ω = 7.29×10⁻⁵ rad/s, sin ${Math.abs(lat)}° = ${sinNorm(lat).toFixed(3)})`,
+        options: opts.map(([k, t]) => [k, `${t} m/s²`]),
+        answer: 'ok', apply: { lat, v },
+        explain: `2 × ${v} × 7.29×10⁻⁵ × ${sinNorm(lat).toFixed(3)} = ${sci(right)} m/s²`,
+      };
+    }
+    S.quiz = q;
+    el.quizQ.innerHTML = q.text;
+    el.quizResult.innerHTML = '';
+    el.quizOpts.innerHTML = '';
+    for (const [key, label] of q.options) {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.k = key; b.innerHTML = label;
+      el.quizOpts.appendChild(b);
+    }
+    fx.click();
+  }
+  function answerQuiz(key) {
+    const q = S.quiz; if (!q || q.done) return;
+    q.done = true;
+    const ok = key === q.answer;
+    S.quizTotal++; if (ok) S.quizCorrect++;
+    el.quizScore.textContent = `정답 ${S.quizCorrect} / 문제 ${S.quizTotal}`;
+    el.quizOpts.querySelectorAll('button').forEach(b => {
+      b.disabled = true;
+      if (b.dataset.k === q.answer) b.classList.add('is-correct');
+      else if (b.dataset.k === key) b.classList.add('is-wrong');
+    });
+    el.quizResult.innerHTML = (ok ? '<b class="ok">🎉 정답!</b> ' : '<b class="bad">아쉬워요.</b> ') + q.explain;
+    if (ok) { fx.ding(); fx.confettiAt(el.quizResult, 80); } else fx.wrong();
+    // 그래프와 계산기를 문제 상황으로 이동
+    S.lat = q.apply.lat; S.v = q.apply.v; el.lat.value = S.lat; el.v.value = S.v; update();
+  }
+  el.quizNew.addEventListener('click', newQuiz);
+  el.quizOpts.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) answerQuiz(b.dataset.k); });
 
   update();
   return { onShow: update };

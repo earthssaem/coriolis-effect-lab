@@ -2,14 +2,8 @@
 import { initDisk } from './disk.js';
 import { initGlobe } from './globe.js';
 import { initCalc } from './calc.js';
-import fx from './fx.js';
 
-const modules = {
-  disk: initDisk(),
-  globe: initGlobe(),
-  calc: initCalc(),
-};
-
+const modules = { disk: initDisk(), globe: initGlobe(), calc: initCalc() };
 const tabs = [...document.querySelectorAll('.tab')];
 const sections = {
   disk: document.getElementById('module-disk'),
@@ -27,18 +21,10 @@ function show(name) {
 
 tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.module)));
 window.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (['INPUT', 'SELECT'].includes(e.target.tagName)) return;
   if (e.key === '1') show('disk');
   if (e.key === '2') show('globe');
   if (e.key === '3') show('calc');
-});
-
-// 효과음 켜기/끄기
-const soundBtn = document.getElementById('sound-toggle');
-soundBtn.addEventListener('click', () => {
-  fx.muted = !fx.muted;
-  soundBtn.textContent = fx.muted ? '🔇' : '🔊';
-  if (!fx.muted) fx.click();
 });
 
 const initial = location.hash.replace('#', '');

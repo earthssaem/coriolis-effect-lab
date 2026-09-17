@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>전향력 실험실</title>
+<meta name="description" content="고등학교 지구시스템 전향력 단원 교사 시연용 웹앱: 회전 원반, 3D 지구본, 전향력 크기 계산">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-title">전향력 실험실</span>
+    <span class="brand-sub">지구시스템 · 회전하는 지구 위의 운동</span>
+  </div>
+  <nav class="tabs" aria-label="모듈 선택">
+    <button class="tab is-active" data-module="disk" type="button"><span class="tab-num">1</span>회전 원반</button>
+    <button class="tab" data-module="globe" type="button"><span class="tab-num">2</span>3D 지구본</button>
+    <button class="tab" data-module="calc" type="button"><span class="tab-num">3</span>전향력의 크기</button>
+  </nav>
+  <div class="topbar-hint">숫자 키 1·2·3 으로 화면 전환</div>
+</header>
+
+<main>
+
+<!-- ───────────── 모듈 1: 회전 원반 ───────────── -->
+<section id="module-disk" class="module is-active" aria-label="회전 원반 실험">
+  <p class="lesson-strip">
+    같은 공을 두 관찰자가 동시에 봅니다. <b>밖에서 보면 공은 직선</b>으로 날아가지만,
+    <b>원반과 함께 도는 사람에게는 휘어져</b> 보입니다. 다른 힘이 작용해서가 아니라 <b>관찰자가 회전</b>하기 때문입니다.
+  </p>
+
+  <div class="disk-views">
+    <figure class="view">
+      <figcaption><span class="badge badge-blue">정지한 관찰자</span> 밖에서 본 모습</figcaption>
+      <div class="canvas-box"><canvas id="disk-inertial"></canvas></div>
+      <p class="view-note">원반이 돌고, 공은 <b>직선</b>으로 날아간다.</p>
+    </figure>
+    <figure class="view">
+      <figcaption><span class="badge badge-red">회전하는 관찰자</span> 원반 위에서 본 모습</figcaption>
+      <div class="canvas-box"><canvas id="disk-rotating"></canvas></div>
+      <p class="view-note" id="disk-rot-note">원반은 멈춰 있고, 공이 <b>휘어져</b> 보인다.</p>
+    </figure>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl-group ctrl-buttons">
+      <button id="disk-play" class="btn btn-primary" type="button">▶ 던지기</button>
+      <button id="disk-reset" class="btn" type="button">↺ 처음으로</button>
+      <label class="ctrl-inline">재생 속도
+        <select id="disk-rate">
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="ctrl-group">
+      <label for="disk-time">시간 <output id="disk-time-out">0.0 s</output></label>
+      <input id="disk-time" type="range" min="0" max="1" step="0.001" value="0">
+    </div>
+
+    <div class="ctrl-group">
+      <label for="disk-omega">원반 회전 속도 <output id="disk-omega-out"></output></label>
+      <input id="disk-omega" type="range" min="0" max="1.2" step="0.05" value="0.4">
+    </div>
+
+    <div class="ctrl-group">
+      <label for="disk-v">공의 속력 <output id="disk-v-out"></output></label>
+      <input id="disk-v" type="range" min="0.3" max="1.5" step="0.05" value="0.6">
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">회전 방향</span>
+      <div class="segmented" id="disk-dir">
+        <button type="button" data-dir="1" class="is-active">시계 반대 방향</button>
+        <button type="button" data-dir="-1">시계 방향</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group ctrl-checks">
+      <label><input type="checkbox" id="disk-show-expected" checked> 예상 경로</label>
+      <label><input type="checkbox" id="disk-show-trail" checked> 공의 경로(자취)</label>
+      <label><input type="checkbox" id="disk-show-force" checked> 전향력 화살표</label>
+      <label><input type="checkbox" id="disk-include-thrower"> 던지는 사람의 회전 속도 반영</label>
+    </div>
+
+    <p class="status" id="disk-status">▶ 던지기를 누르면 아래쪽 사람이 위쪽 사람에게 공을 던집니다.</p>
+  </div>
+</section>
+
+<!-- ───────────── 모듈 2: 3D 지구본 ───────────── -->
+<section id="module-globe" class="module" aria-label="3D 지구본 실험">
+  <div class="globe-layout">
+    <div class="globe-stage">
+      <div id="globe-canvas" class="globe-canvas"></div>
+      <div class="globe-legend">
+        <span><i class="sw sw-arrow-blue"></i>처음 운동 방향</span>
+        <span><i class="sw sw-dash-blue"></i>전향력이 없을 때의 경로</span>
+        <span><i class="sw sw-line-red"></i>전향력에 의한 실제 경로</span>
+        <span><i class="sw sw-arrow-orange"></i>전향력의 방향</span>
+      </div>
+      <div class="globe-hud" id="globe-hud">마우스로 끌어 돌리기 · 휠로 확대</div>
+    </div>
+
+    <aside class="globe-panel">
+      <p class="lesson-strip compact">
+        지구 자전으로 생기는 전향력은 <b>북반구에서 오른쪽</b>, <b>남반구에서 왼쪽</b> 직각 방향으로 작용하고,
+        <b>적도에서는 0</b>이 됩니다.
+      </p>
+
+      <div class="ctrl-group">
+        <label for="globe-lat">발사 위도 <output id="globe-lat-out"></output></label>
+        <input id="globe-lat" type="range" min="-85" max="85" step="5" value="40">
+      </div>
+
+      <div class="ctrl-group">
+        <span class="ctrl-label">발사 방향</span>
+        <div class="segmented" id="globe-heading">
+          <button type="button" data-heading="0" class="is-active">북쪽</button>
+          <button type="button" data-heading="90">동쪽</button>
+          <button type="button" data-heading="180">남쪽</button>
+          <button type="button" data-heading="270">서쪽</button>
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="globe-v">속력 <output id="globe-v-out"></output></label>
+        <input id="globe-v" type="range" min="20" max="400" step="10" value="150">
+      </div>
+
+      <div class="ctrl-group ctrl-row">
+        <label class="ctrl-inline">추적 시간
+          <select id="globe-duration">
+            <option value="3">3시간</option>
+            <option value="6" selected>6시간</option>
+            <option value="12">12시간</option>
+            <option value="24">24시간</option>
+          </select>
+        </label>
+        <label class="ctrl-inline">시간 배속
+          <select id="globe-timescale">
+            <option value="300">300×</option>
+            <option value="900" selected>900×</option>
+            <option value="1800">1800×</option>
+            <option value="3600">3600×</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="ctrl-group ctrl-buttons">
+        <button id="globe-launch" class="btn btn-primary" type="button">▶ 발사</button>
+        <button id="globe-pause" class="btn" type="button">⏸ 일시정지</button>
+        <button id="globe-clear" class="btn" type="button">✕ 모두 지우기</button>
+      </div>
+
+      <div class="ctrl-group ctrl-buttons">
+        <button id="globe-preset-textbook" class="btn btn-accent" type="button">교과서 그림 Ⅱ-6 재현</button>
+      </div>
+
+      <div class="ctrl-group">
+        <span class="ctrl-label">보는 위치</span>
+        <div class="segmented" id="globe-view">
+          <button type="button" data-view="earth" class="is-active">지구와 함께 회전</button>
+          <button type="button" data-view="space">우주에서 보기</button>
+        </div>
+      </div>
+
+      <div class="readout" id="globe-readout">
+        <div class="readout-title">가장 최근에 발사한 물체</div>
+        <dl>
+          <dt>경과 시간</dt><dd id="ro-time">–</dd>
+          <dt>현재 위도 φ</dt><dd id="ro-lat">–</dd>
+          <dt>sin φ</dt><dd id="ro-sin">–</dd>
+          <dt>전향력 크기 2vΩsinφ</dt><dd id="ro-acc">–</dd>
+          <dt>휘어지는 방향</dt><dd id="ro-dir">–</dd>
+        </dl>
+        <p class="readout-foot">Ω = 7.29×10<sup>−5</sup> rad/s (지구 자전 각속도), 단위 질량 기준</p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ───────────── 모듈 3: 전향력의 크기 ───────────── -->
+<section id="module-calc" class="module" aria-label="전향력의 크기 탐구">
+  <div class="calc-layout">
+    <aside class="calc-panel">
+      <p class="lesson-strip compact">
+        위도 φ인 지점에서 단위 질량의 물체가 속력 v로 운동할 때 전향력의 크기는 <b>2vΩsinφ</b>입니다.
+        극에서 가장 크고 적도에서 0이 됩니다.
+      </p>
+
+      <div class="ctrl-group">
+        <label for="calc-lat">위도 φ <output id="calc-lat-out"></output></label>
+        <input id="calc-lat" type="range" min="-90" max="90" step="1" value="37">
+        <div class="chips" id="calc-lat-presets">
+          <button type="button" data-lat="90">북극 90°N</button>
+          <button type="button" data-lat="37">서울 37°N</button>
+          <button type="button" data-lat="0">적도 0°</button>
+          <button type="button" data-lat="-34">시드니 34°S</button>
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="calc-v">속력 v <output id="calc-v-out"></output></label>
+        <input id="calc-v" type="range" min="0" max="300" step="1" value="10">
+        <div class="chips" id="calc-v-presets">
+          <button type="button" data-v="1">해류 1 m/s</button>
+          <button type="button" data-v="10">바람 10 m/s</button>
+          <button type="button" data-v="40">야구공 40 m/s</button>
+          <button type="button" data-v="250">여객기 250 m/s</button>
+        </div>
+      </div>
+
+      <div class="formula-card">
+        <div class="formula-line">
+          전향력 = 2 · v · Ω · sin φ
+        </div>
+        <div class="formula-sub" id="calc-substituted"></div>
+        <div class="formula-result">
+          <span id="calc-result"></span>
+          <span class="unit">m/s² (N/kg)</span>
+        </div>
+        <div class="formula-dir" id="calc-dir"></div>
+      </div>
+
+      <div class="fact-grid">
+        <div class="fact"><div class="fact-label">중력 가속도와 비교</div><div class="fact-value" id="calc-gravity"></div></div>
+        <div class="fact"><div class="fact-label">1초 동안 옆으로 밀리는 거리</div><div class="fact-value" id="calc-shift1s"></div></div>
+        <div class="fact"><div class="fact-label">10분 동안 옆으로 밀리는 거리</div><div class="fact-value" id="calc-shift10m"></div></div>
+        <div class="fact"><div class="fact-label">1시간 동안 옆으로 밀리는 거리</div><div class="fact-value" id="calc-shift1h"></div></div>
+      </div>
+      <p class="fine-print">밀리는 거리는 전향력이 일정하다고 가정한 대략값(½at²)입니다. 짧은 시간·작은 규모의 운동에서는 무시할 수 있지만, 해류나 대기처럼 큰 규모의 운동에서는 반드시 고려해야 합니다.</p>
+    </aside>
+
+    <div class="calc-chart">
+      <div class="chart-title">위도에 따른 전향력의 크기 <span class="chart-sub">(현재 속력 v 기준 · 그래프를 클릭하면 위도가 바뀝니다)</span></div>
+      <svg id="calc-svg" viewBox="0 0 900 520" role="img" aria-label="위도에 따른 전향력 크기 그래프"></svg>
+      <div class="chart-tip" id="calc-tip" hidden></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
